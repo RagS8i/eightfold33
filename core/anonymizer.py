@@ -1,7 +1,7 @@
 """
 PII Anonymizer — dual-layer bias removal.
 Layer 1: Regex-based PII masking.
-Layer 2: LLM-powered bias-field redaction (skipped in mock mode).
+Layer 2: LLM-powered bias-field redaction.
 """
 
 from __future__ import annotations
@@ -79,8 +79,9 @@ def mask_pii(candidate: dict) -> dict:
 
 
 async def redact_bias_with_llm(candidate: dict) -> dict:
-    """LLM layer — skipped in mock mode or if no API key."""
-    if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
+    """LLM layer — redacts company names, university names, and remaining bias signals."""
+    if not settings.GEMINI_API_KEY:
+        # No API key: regex layer is sufficient, skip LLM redaction
         return candidate
 
     import json
@@ -93,10 +94,10 @@ async def redact_bias_with_llm(candidate: dict) -> dict:
 and redact information that could introduce bias in a hiring decision.
 
 Rules:
-1. Replace university names with "[UNIVERSITY]"
-2. Replace company names with "[COMPANY]"
-3. Remove non-job-relevant personal details
-4. Keep ALL technical skills, years of experience, achievements intact
+1. Replace all university/college names with "[UNIVERSITY]"
+2. Replace all company/employer names with "[COMPANY]"
+3. Remove any remaining non-job-relevant personal details
+4. Keep ALL technical skills, years of experience, projects, and achievements intact
 5. Return ONLY valid JSON — no markdown, no explanation."""),
         ("human", "Candidate profile:\n{candidate_json}"),
     ])
@@ -114,11 +115,12 @@ Rules:
         })
         return redacted if isinstance(redacted, dict) else candidate
     except Exception:
+        # If LLM redaction fails, fall back to regex-only result
         return candidate
 
 
 async def anonymize(candidate: dict) -> dict:
-    """Full anonymization: regex PII masking + optional LLM bias removal."""
+    """Full anonymization: regex PII masking + LLM bias removal."""
     masked = mask_pii(candidate)
     redacted = await redact_bias_with_llm(masked)
     return redacted

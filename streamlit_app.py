@@ -1,6 +1,6 @@
 """
 streamlit_app.py — Agentic Candidate Evaluator
-Full end-to-end Streamlit UI with live pipeline execution.
+Full end-to-end Streamlit UI with live Gemini-powered pipeline.
 """
 
 import asyncio
@@ -198,7 +198,7 @@ def render_verdict_card(verdict: dict):
     """, unsafe_allow_html=True)
 
 
-def render_skill_chips(skills: list[str], chip_class: str):
+def render_skill_chips(skills: list, chip_class: str):
     html = "".join(f'<span class="{chip_class}">{s}</span>' for s in skills)
     st.markdown(html, unsafe_allow_html=True)
 
@@ -229,33 +229,23 @@ with st.sidebar:
         help="Get a free key at aistudio.google.com/apikey",
         placeholder="AIza...",
     )
-    use_mock = st.toggle(
-        "Mock Mode (no API key needed)",
-        value=not bool(api_key),
-        help="Uses pre-canned AI responses — great for demos",
-    )
 
     if api_key:
         os.environ["GEMINI_API_KEY"] = api_key
         os.environ["GOOGLE_API_KEY"] = api_key
-        use_mock = False
 
-    os.environ["USE_MOCK_LLM"] = "true" if use_mock else "false"
-
-    # Reload config with new env vars
-    if "config" in sys.modules:
-        del sys.modules["config"]
     from config import settings
-    settings.GEMINI_API_KEY = api_key if api_key else (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", ""))
-    settings.USE_MOCK_LLM = use_mock
+    settings.GEMINI_API_KEY = (
+        api_key
+        or os.getenv("GEMINI_API_KEY")
+        or os.getenv("GOOGLE_API_KEY", "")
+    )
 
-    if use_mock:
-        st.info("🎭 **Mock mode ON** — AI responses are pre-canned. Toggle off + add API key for real LLM responses.")
-    elif api_key:
-        st.success("🔑 **API key set** — using live Gemini LLM")
+    if settings.GEMINI_API_KEY:
+        st.success("🔑 API key set — live Gemini reasoning enabled")
     else:
-        st.warning("⚠️ No API key — switching to mock mode")
-        settings.USE_MOCK_LLM = True
+        st.error("⚠️ No API key — evaluation will fail. Add your key above.")
+        st.markdown("[Get a free Gemini API key →](https://aistudio.google.com/apikey)")
 
     st.divider()
     st.markdown("### 📖 How it works")
@@ -391,9 +381,6 @@ with tab_candidate:
 with tab_run:
     st.subheader("Run Evaluation Pipeline")
 
-    jd_ready = "jd_data" in st.session_state or True
-    cand_ready = "cand_data" in st.session_state or True
-
     jd_final = st.session_state.get("jd_data", SAMPLE_JD)
     cand_final = st.session_state.get("cand_data", SAMPLE_CANDIDATE)
 
@@ -411,9 +398,17 @@ with tab_run:
 
     st.divider()
 
+    if not settings.GEMINI_API_KEY:
+        st.warning("⚠️ Add your Gemini API key in the sidebar before running.")
+
     run_col, _ = st.columns([1, 2])
     with run_col:
-        run_btn = st.button("🚀 Run Full Evaluation", type="primary", use_container_width=True)
+        run_btn = st.button(
+            "🚀 Run Full Evaluation",
+            type="primary",
+            use_container_width=True,
+            disabled=not bool(settings.GEMINI_API_KEY),
+        )
 
     if run_btn:
         st.session_state.pop("report", None)
@@ -462,8 +457,11 @@ with tab_run:
                 "missing_skills": analysis.missing_skills,
                 "extra_skills": analysis.extra_skills,
                 "experience_analysis": [
-                    {"skill": e.skill, "required": e.required_years, "actual": e.actual_years,
-                     "meets": e.meets_requirement, "reasoning": e.reasoning}
+                    {
+                        "skill": e.skill, "required": e.required_years,
+                        "actual": e.actual_years, "meets": e.meets_requirement,
+                        "reasoning": e.reasoning,
+                    }
                     for e in analysis.experience_comparisons
                 ],
                 "graph_reasoning": analysis.reasoning,
@@ -473,8 +471,7 @@ with tab_run:
 
             # Step 5
             progress.progress(70, "🗣 Running multi-agent debate...")
-            mode_label = "mock agents" if settings.USE_MOCK_LLM else "live Gemini agents"
-            status_container.info(f"Advocate ↔ Critic ↔ Fairness ↔ Judge ({mode_label})...")
+            status_container.info("Advocate ↔ Critic ↔ Fairness ↔ Judge (live Gemini reasoning)...")
 
             debate_result = None
             for attempt in range(3):
@@ -485,7 +482,10 @@ with tab_run:
                     err = str(e)
                     if "429" in err or "RESOURCE_EXHAUSTED" in err:
                         wait = 40 * (attempt + 1)
-                        status_container.warning(f"Rate limited. Waiting {wait}s... (attempt {attempt+1}/3)")
+                        status_container.warning(
+                            f"Rate limited by Gemini API. Waiting {wait}s before retry "
+                            f"(attempt {attempt + 1}/3)..."
+                        )
                         time.sleep(wait)
                         if attempt == 2:
                             raise
@@ -508,11 +508,17 @@ with tab_run:
         except Exception as e:
             progress.empty()
             status_container.empty()
-            st.error(f"❌ Pipeline failed: {str(e)}")
-            if "expired" in str(e).lower() or "invalid" in str(e).lower():
-                st.warning("Your API key appears to be invalid or expired. Enable **Mock Mode** in the sidebar to run without a key.")
-            elif "quota" in str(e).lower() or "429" in str(e):
-                st.warning("API quota exhausted. Enable **Mock Mode** in the sidebar or wait and retry.")
+            err_str = str(e)
+            st.error(f"❌ Pipeline failed: {err_str}")
+            if "No GEMINI_API_KEY" in err_str or "api_key" in err_str.lower():
+                st.warning("Please add a valid Gemini API key in the sidebar to run the evaluation.")
+            elif "expired" in err_str.lower() or "invalid" in err_str.lower():
+                st.warning("Your API key appears to be invalid or expired. Please check and re-enter it in the sidebar.")
+            elif "quota" in err_str.lower() or "429" in err_str:
+                st.warning(
+                    "Gemini API quota exhausted. Please wait a few minutes and try again, "
+                    "or upgrade your Google AI plan at https://ai.google.dev/pricing"
+                )
             st.exception(e)
 
 

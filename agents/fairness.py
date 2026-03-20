@@ -1,55 +1,44 @@
 """
 Fairness Agent — fact-checks both sides and detects bias.
+Always uses live Gemini LLM reasoning.
 """
-
 from __future__ import annotations
 import json
 from config import settings
 
-MOCK_FAIRNESS_RESPONSE = {
-    "verified_claims": [
-        "Advocate's skill match percentage is consistent with the FAISS similarity scores",
-        "Critic's identification of missing Kubernetes, Terraform, GraphQL, Kafka is accurate",
-        "Both agents are reasoning from the evidence bundle without fabrication",
-    ],
-    "disputed_claims": [],
-    "bias_flags": [],
-    "balance_assessment": "Both agents present evidence-backed arguments. The debate is balanced. Critic has stronger data support for specific gaps.",
-    "recommendations": [
-        "Weight Kubernetes and Terraform gaps heavily — both are explicitly required",
-        "Consider that 6 years experience may offset some skill gaps via learning velocity",
-    ],
-    "fairness_score": 0.87,
-}
-
 
 async def run_fairness(evidence_bundle: dict, advocate_args: dict, critic_args: dict) -> dict:
-    if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
-        return dict(MOCK_FAIRNESS_RESPONSE)
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("No GEMINI_API_KEY set. Please add your API key in the sidebar.")
 
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.prompts import ChatPromptTemplate
     from langchain_core.output_parsers import JsonOutputParser
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are the FAIRNESS agent. Fact-check both sides and ensure debate integrity.
+        ("system", """You are the FAIRNESS agent in a structured hiring debate.
+Your job is to fact-check both the Advocate and Critic against the evidence bundle,
+detect any bias or fabrication, and provide a balanced assessment.
 
 Rules:
-1. Verify every claim against the evidence bundle.
-2. Flag any argument not supported by data.
-3. Detect subtle bias in reasoning.
-4. Remain strictly neutral.
+1. Verify every specific claim made by both agents against the evidence bundle.
+2. Flag any claim that is not directly supported by the data.
+3. Detect subtle bias — e.g. overstating weak matches, dismissing valid experience.
+4. Check that similarity scores cited are accurate.
+5. Check that missing skills are genuinely absent, not just weakly matched.
+6. Remain strictly neutral — do not favor either side.
+7. Score fairness based on how evidence-grounded both agents are.
 
-Return ONLY valid JSON:
+Return ONLY valid JSON, no markdown, no explanation:
 {{
-    "verified_claims": ["claim...", ...],
-    "disputed_claims": ["claim + explanation...", ...],
-    "bias_flags": ["bias description...", ...],
-    "balance_assessment": "which agent has stronger evidence",
-    "recommendations": ["suggestion...", ...],
-    "fairness_score": <float 0-1>
+    "verified_claims": ["verified claim from either agent", ...],
+    "disputed_claims": ["disputed claim + why it's unsupported", ...],
+    "bias_flags": ["description of any detected bias", ...],
+    "balance_assessment": "1-2 sentence assessment of which agent has stronger evidence support",
+    "recommendations": ["specific recommendation for the judge", ...],
+    "fairness_score": <float 0.0-1.0, where 1.0 means both agents fully grounded in evidence>
 }}"""),
-        ("human", "EVIDENCE:\n{evidence}\n\nADVOCATE:\n{advocate}\n\nCRITIC:\n{critic}\n\nReturn JSON only."),
+        ("human", "EVIDENCE BUNDLE:\n{evidence}\n\nADVOCATE ARGUMENTS:\n{advocate}\n\nCRITIC ARGUMENTS:\n{critic}\n\nReturn JSON only."),
     ])
 
     llm = ChatGoogleGenerativeAI(

@@ -1,39 +1,15 @@
 """
 Critic Agent — argues AGAINST hiring the candidate.
+Always uses live Gemini LLM reasoning.
 """
-
 from __future__ import annotations
 import json
 from config import settings
 
-MOCK_CRITIC_RESPONSE = {
-    "position": "no_hire",
-    "confidence": 0.60,
-    "key_arguments": [
-        "Candidate is missing Kubernetes, Terraform, GraphQL, and Kafka — all listed as requirements",
-        "Weak similarity scores for terraform (0.48), graphql (0.44), and kubernetes (0.32)",
-        "REST API Design match at 0.43 is concerningly low for a backend role",
-    ],
-    "risks_identified": [
-        "Kubernetes gap is critical — the JD requires 2+ years production k8s experience",
-        "No Terraform means candidate cannot contribute to IaC from day one",
-        "GraphQL and Kafka gaps may impact team velocity significantly",
-    ],
-    "evidence_cited": [
-        "5 of 12 JD skills scored below the 0.7 threshold",
-        "kubernetes ↔ aws similarity: 0.32 — not a valid match",
-    ],
-    "rebuttal_to_advocate": None,
-}
-
 
 async def run_critic(evidence_bundle: dict, debate_context: str = "") -> dict:
-    if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
-        result = dict(MOCK_CRITIC_RESPONSE)
-        missing = evidence_bundle.get("missing_skills", [])
-        if missing:
-            result["key_arguments"][0] = f"Candidate is missing {len(missing)} required skills: {', '.join(missing[:5])}"
-        return result
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("No GEMINI_API_KEY set. Please add your API key in the sidebar.")
 
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.prompts import ChatPromptTemplate
@@ -41,25 +17,28 @@ async def run_critic(evidence_bundle: dict, debate_context: str = "") -> dict:
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are the CRITIC agent in a structured hiring debate.
-Present the STRONGEST case AGAINST hiring this candidate based ONLY on the evidence.
+Your job is to present the STRONGEST honest case AGAINST hiring this candidate,
+based ONLY on the evidence bundle provided.
 
 Rules:
-1. Base ALL arguments on the evidence — do not fabricate.
-2. Highlight missing skills and experience shortfalls.
-3. Question weak matches (similarity < 0.7).
-4. Note concerning patterns.
-5. If responding to advocate, challenge with data.
+1. Base ALL arguments strictly on the evidence — never fabricate missing skills.
+2. Challenge any skill match with similarity < 0.7 as unreliable.
+3. Highlight missing required skills and experience shortfalls.
+4. Question whether weak vector matches represent real practical skill.
+5. Cite specific similarity scores, missing skills, and experience gaps.
+6. If responding to the advocate, directly rebut their specific claims with data.
+7. Be rigorous but fair — do not dismiss genuinely strong matches.
 
-Return ONLY valid JSON:
+Return ONLY valid JSON, no markdown, no explanation:
 {{
     "position": "no_hire",
-    "confidence": <float 0-1>,
-    "key_arguments": ["argument1", ...],
-    "risks_identified": ["risk1", ...],
-    "evidence_cited": ["evidence1", ...],
-    "rebuttal_to_advocate": "response or null"
+    "confidence": <float 0.0-1.0>,
+    "key_arguments": ["detailed argument 1", "detailed argument 2", ...],
+    "risks_identified": ["specific risk 1", "specific risk 2", ...],
+    "evidence_cited": ["specific data point 1", "specific data point 2", ...],
+    "rebuttal_to_advocate": "direct response to advocate's arguments, or null if opening round"
 }}"""),
-        ("human", "EVIDENCE:\n{evidence}\n\nCONTEXT:\n{context}\n\nReturn JSON only."),
+        ("human", "EVIDENCE BUNDLE:\n{evidence}\n\nDEBATE CONTEXT:\n{context}\n\nReturn JSON only."),
     ])
 
     llm = ChatGoogleGenerativeAI(
@@ -70,5 +49,5 @@ Return ONLY valid JSON:
     chain = prompt | llm | JsonOutputParser()
     return await chain.ainvoke({
         "evidence": json.dumps(evidence_bundle, indent=2, default=str),
-        "context": debate_context or "Opening round.",
+        "context": debate_context or "Opening round — make your strongest case against hiring.",
     })

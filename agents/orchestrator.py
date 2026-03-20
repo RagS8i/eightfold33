@@ -1,8 +1,8 @@
 """
 Orchestrator — LangGraph StateGraph running the multi-agent debate.
 Flow: advocate → critic → fairness → (loop N rounds) → judge
+All agents use live LLM reasoning.
 """
-
 from __future__ import annotations
 
 import json
@@ -36,12 +36,19 @@ async def advocate_node(state: DebateState) -> dict:
     log: ConversationLog = state["conversation_log"]
     round_num = state["current_round"]
 
-    context = "Opening round."
+    context = "Opening round — make your strongest case for hiring."
     if state["critic_args"]:
         last_critic = state["critic_args"][-1]
-        context = f"Round {round_num}. Critic argued:\n{json.dumps(last_critic, indent=2, default=str)}"
+        context = (
+            f"Round {round_num}. The Critic argued:\n"
+            f"{json.dumps(last_critic, indent=2, default=str)}\n\n"
+            f"Directly rebut their specific claims using evidence."
+        )
         if state["fairness_reviews"]:
-            context += f"\n\nFairness:\n{json.dumps(state['fairness_reviews'][-1], indent=2, default=str)}"
+            context += (
+                f"\n\nFairness review noted:\n"
+                f"{json.dumps(state['fairness_reviews'][-1], indent=2, default=str)}"
+            )
 
     result = await run_advocate(state["evidence"], context)
     log.add_entry(
@@ -57,9 +64,16 @@ async def critic_node(state: DebateState) -> dict:
     round_num = state["current_round"]
 
     last_advocate = state["advocate_args"][-1] if state["advocate_args"] else {}
-    context = f"Round {round_num}. Advocate argued:\n{json.dumps(last_advocate, indent=2, default=str)}"
+    context = (
+        f"Round {round_num}. The Advocate argued:\n"
+        f"{json.dumps(last_advocate, indent=2, default=str)}\n\n"
+        f"Directly challenge their specific claims using evidence."
+    )
     if state["fairness_reviews"]:
-        context += f"\n\nFairness:\n{json.dumps(state['fairness_reviews'][-1], indent=2, default=str)}"
+        context += (
+            f"\n\nFairness review noted:\n"
+            f"{json.dumps(state['fairness_reviews'][-1], indent=2, default=str)}"
+        )
 
     result = await run_critic(state["evidence"], context)
     log.add_entry(
@@ -92,90 +106,74 @@ def should_continue(state: DebateState) -> str:
     return "continue"
 
 
-MOCK_VERDICT = {
-    "verdict": "LEAN_HIRE",
-    "confidence": 0.72,
-    "reasoning": (
-        "The candidate demonstrates strong alignment with 7 of 12 required skills, "
-        "particularly Python, Node.js, PostgreSQL, Docker, AWS, CI/CD, and Redis. "
-        "However, notable gaps exist in Kubernetes, Terraform, GraphQL, and Kafka. "
-        "The candidate's 6 years of experience and track record of delivering scalable "
-        "systems slightly outweigh these gaps, suggesting they could ramp up quickly. "
-        "A targeted technical interview on cloud-native tooling is recommended."
-    ),
-    "advocate_strength": 0.70,
-    "critic_strength": 0.65,
-    "key_factors": [
-        "Strong core skill match (Python, AWS, PostgreSQL, Docker)",
-        "Missing Kubernetes and Terraform are significant gaps",
-        "Experience level and certifications partially compensate for skill gaps",
-        "GraphQL and Kafka gaps are manageable with ramp-up time",
-    ],
-    "conditions": [
-        "Verdict improves if candidate can demonstrate k8s fundamentals in interview",
-        "Verdict worsens if Terraform IaC is day-one critical",
-    ],
-}
-
-
 async def judge_node(state: DebateState) -> dict:
     log: ConversationLog = state["conversation_log"]
 
-    if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
-        match_pct = state["evidence"].get("match_percentage", 50)
-        verdict = dict(MOCK_VERDICT)
-        if match_pct >= 80:
-            verdict["verdict"] = "HIRE"
-            verdict["confidence"] = 0.82
-        elif match_pct >= 60:
-            verdict["verdict"] = "LEAN_HIRE"
-            verdict["confidence"] = 0.68
-        elif match_pct >= 40:
-            verdict["verdict"] = "LEAN_NO_HIRE"
-            verdict["confidence"] = 0.62
-        else:
-            verdict["verdict"] = "NO_HIRE"
-            verdict["confidence"] = 0.75
-    else:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        from langchain_core.prompts import ChatPromptTemplate
-        from langchain_core.output_parsers import JsonOutputParser
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("No GEMINI_API_KEY set. Please add your API key in the sidebar.")
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are the JUDGE in a structured hiring debate.
-Render a FINAL VERDICT after listening to all rounds.
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_core.output_parsers import JsonOutputParser
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are the JUDGE in a structured hiring debate.
+After listening to all debate rounds, render a final hiring verdict.
+
+Your verdict must be grounded in:
+1. The raw evidence bundle (FAISS similarity scores, skill gaps, experience data)
+2. The quality of arguments made by both agents
+3. The fairness agent's fact-checks and recommendations
 
 VERDICT OPTIONS (choose exactly one):
-STRONG_HIRE | HIRE | LEAN_HIRE | LEAN_NO_HIRE | NO_HIRE | STRONG_NO_HIRE
+STRONG_HIRE    — Exceptional fit, hire with high confidence
+HIRE           — Good fit, recommend hiring
+LEAN_HIRE      — More strengths than weaknesses, lean toward hiring
+LEAN_NO_HIRE   — More weaknesses than strengths, lean against hiring
+NO_HIRE        — Poor fit, do not recommend hiring
+STRONG_NO_HIRE — Very poor fit, strongly recommend against hiring
 
-Return ONLY valid JSON:
+Rules:
+1. Cite specific evidence in your reasoning.
+2. Acknowledge the strongest argument from each side.
+3. Your confidence should reflect genuine uncertainty where it exists.
+4. List concrete conditions under which the verdict would change.
+
+Return ONLY valid JSON, no markdown, no explanation:
 {{
-    "verdict": "<option>",
-    "confidence": <float 0-1>,
-    "reasoning": "detailed reasoning",
-    "advocate_strength": <float 0-1>,
-    "critic_strength": <float 0-1>,
-    "key_factors": ["factor1", ...],
-    "conditions": ["condition1", ...]
+    "verdict": "<one of the six options>",
+    "confidence": <float 0.0-1.0>,
+    "reasoning": "detailed paragraph citing specific evidence and debate arguments",
+    "advocate_strength": <float 0.0-1.0>,
+    "critic_strength": <float 0.0-1.0>,
+    "key_factors": ["factor 1", "factor 2", ...],
+    "conditions": ["condition that would improve verdict", "condition that would worsen verdict", ...]
 }}"""),
-            ("human", "EVIDENCE:\n{evidence}\n\nDEBATE:\n{debate}\n\nFAIRNESS:\n{fairness}\n\nReturn JSON only."),
-        ])
+        ("human", (
+            "EVIDENCE BUNDLE:\n{evidence}\n\n"
+            "FULL DEBATE (all rounds):\n{debate}\n\n"
+            "FAIRNESS REVIEWS:\n{fairness}\n\n"
+            "Return JSON only."
+        )),
+    ])
 
-        llm = ChatGoogleGenerativeAI(
-            model=settings.LLM_MODEL,
-            google_api_key=settings.GEMINI_API_KEY,
-            temperature=0.2,
-        )
-        chain = prompt | llm | JsonOutputParser()
-        debate_summary = [
-            {"round": i + 1, "advocate": a, "critic": c}
-            for i, (a, c) in enumerate(zip(state["advocate_args"], state["critic_args"]))
-        ]
-        verdict = await chain.ainvoke({
-            "evidence": json.dumps(state["evidence"], indent=2, default=str),
-            "debate": json.dumps(debate_summary, indent=2, default=str),
-            "fairness": json.dumps(state["fairness_reviews"], indent=2, default=str),
-        })
+    llm = ChatGoogleGenerativeAI(
+        model=settings.LLM_MODEL,
+        google_api_key=settings.GEMINI_API_KEY,
+        temperature=0.2,
+    )
+    chain = prompt | llm | JsonOutputParser()
+
+    debate_summary = [
+        {"round": i + 1, "advocate": a, "critic": c}
+        for i, (a, c) in enumerate(zip(state["advocate_args"], state["critic_args"]))
+    ]
+
+    verdict = await chain.ainvoke({
+        "evidence": json.dumps(state["evidence"], indent=2, default=str),
+        "debate": json.dumps(debate_summary, indent=2, default=str),
+        "fairness": json.dumps(state["fairness_reviews"], indent=2, default=str),
+    })
 
     log.add_entry(
         agent_name="Orchestrator", role="orchestrator",
@@ -205,12 +203,18 @@ def build_debate_graph() -> StateGraph:
 
 
 async def run_debate(evidence_bundle: dict, max_rounds: int | None = None) -> dict:
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError(
+            "No Gemini API key found. Set GEMINI_API_KEY in your .env file "
+            "or paste it in the sidebar."
+        )
+
     log = ConversationLog()
     rounds = max_rounds or settings.DEBATE_ROUNDS
 
     log.add_entry(
         agent_name="System", role="orchestrator", round_number=0,
-        content=f"Debate initiated. Max rounds: {rounds}.",
+        content=f"Debate initiated. Max rounds: {rounds}. Mode: Live Gemini LLM.",
         entry_type="meta",
     )
 
