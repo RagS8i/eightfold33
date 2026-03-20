@@ -1,0 +1,72 @@
+{
+    "name": "Priya Ramesh",
+    "email": "priya.ramesh@email.com",
+    "phone": "+91-98765-43210",
+    "gender": "Female",
+    "age": 29,
+    "address": "42 Koramangala 5th Block, Bangalore 560095",
+    "nationality": "Indian",
+    "university": "Indian Institute of Technology, Bombay",
+    "degree": "B.Tech Computer Science",
+    "years_of_experience": 6,
+    "professional_summary": "Backend engineer with 6 years experience building scalable distributed systems. Strong in Python and cloud-native architectures. Led migration of monolithic services to microservices.",
+    "skills": [
+        {"name": "Python", "years": 5, "proficiency": "expert"},
+        {"name": "NodeJS", "years": 3, "proficiency": "advanced"},
+        {"name": "PostgreSQL", "years": 4, "proficiency": "advanced"},
+        {"name": "Docker", "years": 3, "proficiency": "advanced"},
+        {"name": "AWS", "years": 4, "proficiency": "advanced"},
+        {"name": "REST", "years": 5, "proficiency": "expert"},
+        {"name": "Redis", "years": 2, "proficiency": "intermediate"},
+        {"name": "MongoDB", "years": 2, "proficiency": "intermediate"},
+        {"name": "FastAPI", "years": 2, "proficiency": "advanced"},
+        {"name": "Django", "years": 3, "proficiency": "advanced"},
+        {"name": "Git", "years": 6, "proficiency": "expert"},
+        {"name": "CICD", "years": 3, "proficiency": "advanced"},
+        {"name": "Linux", "years": 5, "proficiency": "advanced"}
+    ],
+    "work_experience": [
+        {
+            "company": "Google",
+            "role": "Backend Engineer II",
+            "duration": "2022-present",
+            "highlights": [
+                "Designed and deployed microservices handling 10K RPS",
+                "Led Python-to-Go migration for latency-critical services",
+                "Mentored 3 junior engineers"
+            ]
+        },
+        {
+            "company": "Flipkart",
+            "role": "Software Engineer",
+            "duration": "2020-2022",
+            "highlights": [
+                "Built order management system using Django + PostgreSQL",
+                "Implemented Redis caching layer reducing API latency by 40%",
+                "Contributed to CI/CD pipeline automation"
+            ]
+        }
+    ],
+    "certifications": [
+        "AWS Solutions Architect Associate",
+        "Kubernetes Application Developer (CKAD)"
+    ],
+    "projects": [
+        {
+            "name": "Real-time Analytics Pipeline",
+            "tech": ["Python", "Kafka", "Redis", "PostgreSQL"],
+            "description": "Built streaming pipeline processing 1M events/day"
+        }
+    ],
+    "capabilities": [
+        "System design and architecture",
+        "Technical mentorship",
+        "Performance optimization",
+        "Distributed systems"
+    ],
+    "downsides": [
+        "Limited Kubernetes production experience (mostly Docker-based)",
+        "No Terraform experience",
+        "No GraphQL experience"
+    ]
+}

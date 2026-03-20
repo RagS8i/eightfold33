@@ -1,0 +1,23 @@
+{
+    "title": "Senior Backend Engineer",
+    "company": "TechCorp",
+    "description": "We are looking for a Senior Backend Engineer to design, build, and maintain scalable backend services.",
+    "required_skills": [
+        {"name": "Python", "years": 4},
+        {"name": "Node.js", "years": 2},
+        {"name": "PostgreSQL", "years": 3},
+        {"name": "Docker", "years": 2},
+        {"name": "Kubernetes", "years": 2},
+        {"name": "AWS", "years": 3},
+        {"name": "REST API Design", "years": 3},
+        {"name": "CI/CD", "years": 2}
+    ],
+    "preferred_skills": [
+        {"name": "Terraform", "years": 1},
+        {"name": "Redis", "years": 1},
+        {"name": "GraphQL", "years": 1},
+        {"name": "Kafka", "years": 1}
+    ],
+    "experience_level": "Senior",
+    "min_years_experience": 5
+}

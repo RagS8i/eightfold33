@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+venv/
+.venv/
+.myenv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Streamlit secrets (never commit real secrets)
+.streamlit/secrets.toml
+
+# Models (downloaded at runtime)
+models/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output files
+evaluation_report.md
+evaluation_report.json
+debate_transcript.md
