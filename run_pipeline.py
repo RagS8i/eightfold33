@@ -9,7 +9,7 @@ import os
 import sys
 
 # ── Force mock mode ON before anything else loads ────────────────────────────
-os.environ["USE_MOCK_LLM"] = "true"
+os.environ["USE_MOCK_LLM"] = "false"
 
 # ── Load .env (will NOT override the above because we set it first) ───────────
 from dotenv import load_dotenv
