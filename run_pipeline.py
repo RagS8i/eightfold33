@@ -5,19 +5,12 @@ and prints the Markdown report to stdout.
 
 import asyncio
 import json
-import os
 import sys
+import os
 
-# ── Force mock mode ON before anything else loads ────────────────────────────
-os.environ["USE_MOCK_LLM"] = "false"
-
-# ── Load .env (will NOT override the above because we set it first) ───────────
-from dotenv import load_dotenv
-load_dotenv()  # no override=True, so our forced value above is preserved
-
+# Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import settings
 from core.anonymizer import anonymize
 from core.skill_taxonomy import normalize_list
 from core.vector_engine import get_vector_engine
@@ -27,19 +20,24 @@ from report.generator import build_report, format_report_markdown
 
 
 async def run_pipeline(jd: dict, candidate: dict) -> dict:
-    """Core pipeline — reusable by both CLI and Streamlit."""
+    """Core pipeline logic — reusable by both CLI and Streamlit."""
 
+    # Step 1: Anonymize
     anonymized = await anonymize(candidate)
 
+    # Step 2: Normalize skills
     jd_skills = normalize_list(_extract_jd_skills(jd))
     cand_skills = normalize_list(_extract_candidate_skills(anonymized))
 
+    # Step 3: FAISS similarity
     engine = get_vector_engine()
     overall_sim = engine.compute_overall_similarity(jd_skills, cand_skills)
     skill_matches = engine.find_skill_matches(jd_skills, cand_skills)
 
+    # Step 4: Skill graph
     analysis = build_skill_graph(jd, anonymized, skill_matches)
 
+    # Step 5: Evidence bundle
     evidence_bundle = {
         "overall_similarity": round(overall_sim, 4),
         "match_percentage": analysis.match_percentage,
@@ -50,8 +48,11 @@ async def run_pipeline(jd: dict, candidate: dict) -> dict:
         "missing_skills": analysis.missing_skills,
         "extra_skills": analysis.extra_skills,
         "experience_analysis": [
-            {"skill": e.skill, "required": e.required_years, "actual": e.actual_years,
-             "meets": e.meets_requirement, "reasoning": e.reasoning}
+            {
+                "skill": e.skill, "required": e.required_years,
+                "actual": e.actual_years, "meets": e.meets_requirement,
+                "reasoning": e.reasoning,
+            }
             for e in analysis.experience_comparisons
         ],
         "graph_reasoning": analysis.reasoning,
@@ -59,9 +60,24 @@ async def run_pipeline(jd: dict, candidate: dict) -> dict:
         "candidate_skills": cand_skills,
     }
 
-    # Mock mode: instant, no API calls ever
-    debate_result = await run_debate(evidence_bundle)
+    # Step 6: Multi-agent debate (with retry on rate limit)
+    debate_result = None
+    for attempt in range(3):
+        try:
+            debate_result = await run_debate(evidence_bundle)
+            break
+        except Exception as e:
+            err = str(e)
+            if "429" in err or "RESOURCE_EXHAUSTED" in err:
+                wait = 40 * (attempt + 1)
+                print(f"   ⚠️  Rate limited. Waiting {wait}s (attempt {attempt + 1}/3)...")
+                await asyncio.sleep(wait)
+                if attempt == 2:
+                    raise
+            else:
+                raise
 
+    # Step 7: Build report
     report = build_report(jd, anonymized, evidence_bundle, debate_result)
     report["_skill_matches_raw"] = [
         {"jd_skill": m.jd_skill, "candidate_skill": m.candidate_skill, "similarity": m.similarity}
@@ -75,8 +91,6 @@ async def main():
     print("🤖 AGENTIC CANDIDATE EVALUATOR — CLI Pipeline")
     print("=" * 70)
     print()
-    print("🎭 Mode: MOCK  (pre-canned AI responses, no API calls)")
-    print()
 
     base = os.path.dirname(os.path.abspath(__file__))
 
@@ -85,15 +99,16 @@ async def main():
     with open(os.path.join(base, "sample_data", "sample_candidate.json")) as f:
         candidate = json.load(f)
 
-    print(f"📄 Job:       {jd.get('title', 'Unknown')} @ {jd.get('company', 'N/A')}")
+    print(f"📄 Job:       {jd.get('title', 'Unknown')}")
     print(f"👤 Candidate: {candidate.get('name', 'Unknown')}")
     print()
+
     print("🔒 Step 1: Anonymizing...")
     print("🔧 Step 2: Normalizing skills...")
-    print("🔢 Step 3: FAISS similarities (local)...")
-    print("📊 Step 4: Skill graph analysis...")
-    print("🗣  Step 5: Multi-agent debate (mock)...")
-    print("📋 Step 6: Building report...")
+    print("🔢 Step 3: Computing FAISS similarities...")
+    print("📊 Step 4: Building skill graph...")
+    print("🗣  Step 5: Running multi-agent debate...")
+    print("📋 Step 6: Generating report...")
     print()
 
     report = await run_pipeline(jd, candidate)
@@ -103,35 +118,40 @@ async def main():
     print(report_md)
     print("=" * 70)
 
-    out_md   = os.path.join(base, "evaluation_report.md")
+    # Save outputs
+    out_md = os.path.join(base, "evaluation_report.md")
     out_json = os.path.join(base, "evaluation_report.json")
-    out_log  = os.path.join(base, "debate_transcript.md")
+    out_log = os.path.join(base, "debate_transcript.md")
 
     with open(out_md, "w", encoding="utf-8") as f:
         f.write(report_md)
+    print(f"\n💾 Report:     {out_md}")
 
     with open(out_json, "w", encoding="utf-8") as f:
-        json.dump({k: v for k, v in report.items() if k != "conversation_log"}, f, indent=2, default=str)
+        # Remove non-serializable objects before saving
+        save_report = {k: v for k, v in report.items() if k != "conversation_log"}
+        json.dump(save_report, f, indent=2, default=str)
+    print(f"💾 JSON:       {out_json}")
 
+    # Export transcript from the debate result
+    from agents.orchestrator import run_debate as _  # noqa
+    # The conversation log is inside the report's immutable_log
     from agents.conversation_log import ConversationLog
     log = ConversationLog()
     for entry in report.get("immutable_log", []):
         log.add_entry(
-            agent_name=entry["agent_name"], role=entry["role"],
-            round_number=entry["round_number"], content=entry["content"],
+            agent_name=entry["agent_name"],
+            role=entry["role"],
+            round_number=entry["round_number"],
+            content=entry["content"],
             entry_type=entry["entry_type"],
         )
     with open(out_log, "w", encoding="utf-8") as f:
         f.write(log.export_markdown())
+    print(f"📜 Transcript: {out_log}")
 
     verdict = report.get("verdict", {})
-    print(f"\n✅ Complete!")
-    print(f"   Verdict:     {verdict.get('verdict', 'N/A')}  ({verdict.get('confidence', 0):.0%} confidence)")
-    print(f"   Skill match: {report['skill_analysis']['match_percentage']:.1f}%")
-    print(f"   Similarity:  {report['skill_analysis']['overall_similarity']:.3f}")
-    print(f"\n💾 evaluation_report.md")
-    print(f"💾 evaluation_report.json")
-    print(f"📜 debate_transcript.md")
+    print(f"\n✅ Done. Verdict: {verdict.get('verdict', 'N/A')} (confidence: {verdict.get('confidence', 0):.0%})")
 
 
 if __name__ == "__main__":

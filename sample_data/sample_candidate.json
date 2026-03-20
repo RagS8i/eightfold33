@@ -1,72 +1,67 @@
 {
-    "name": "Priya Ramesh",
-    "email": "priya.ramesh@email.com",
+    "name": "Raghav Sharma",
+    "email": "raghav.sharma@email.com",
     "phone": "+91-98765-43210",
-    "gender": "Female",
-    "age": 29,
+    "gender": "Male",
+    "age": 27,
     "address": "42 Koramangala 5th Block, Bangalore 560095",
     "nationality": "Indian",
     "university": "Indian Institute of Technology, Bombay",
     "degree": "B.Tech Computer Science",
-    "years_of_experience": 6,
-    "professional_summary": "Backend engineer with 6 years experience building scalable distributed systems. Strong in Python and cloud-native architectures. Led migration of monolithic services to microservices.",
+    "years_of_experience": 4,
+    "professional_summary": "Software engineer with 4 years of experience building scalable backend systems and integrating machine learning solutions. Strong in Python, cloud-native architectures, and applied ML. Experienced in deploying ML models into production systems.",
     "skills": [
-        {"name": "Python", "years": 5, "proficiency": "expert"},
-        {"name": "NodeJS", "years": 3, "proficiency": "advanced"},
-        {"name": "PostgreSQL", "years": 4, "proficiency": "advanced"},
-        {"name": "Docker", "years": 3, "proficiency": "advanced"},
-        {"name": "AWS", "years": 4, "proficiency": "advanced"},
-        {"name": "REST", "years": 5, "proficiency": "expert"},
-        {"name": "Redis", "years": 2, "proficiency": "intermediate"},
-        {"name": "MongoDB", "years": 2, "proficiency": "intermediate"},
-        {"name": "FastAPI", "years": 2, "proficiency": "advanced"},
-        {"name": "Django", "years": 3, "proficiency": "advanced"},
-        {"name": "Git", "years": 6, "proficiency": "expert"},
-        {"name": "CICD", "years": 3, "proficiency": "advanced"},
-        {"name": "Linux", "years": 5, "proficiency": "advanced"}
+        {"name": "Machine Learning", "years": 2, "proficiency": "advanced"},
+        {"name": "TensorFlow", "years": 2, "proficiency": "advanced"},
+        {"name": "PyTorch", "years": 1, "proficiency": "intermediate"},
+        {"name": "Scikit-learn", "years": 3, "proficiency": "advanced"},
+        {"name": "Pandas", "years": 4, "proficiency": "expert"},
+        {"name": "NumPy", "years": 4, "proficiency": "expert"},
+        {"name": "Model Deployment", "years": 2, "proficiency": "advanced"},
+        {"name": "MLOps", "years": 1, "proficiency": "intermediate"}
     ],
     "work_experience": [
         {
-            "company": "Google",
-            "role": "Backend Engineer II",
+            "company": "Replit",
+            "role": "Software Engineer",
             "duration": "2022-present",
             "highlights": [
-                "Designed and deployed microservices handling 10K RPS",
-                "Led Python-to-Go migration for latency-critical services",
-                "Mentored 3 junior engineers"
+                "Developed backend systems supporting collaborative coding environments",
+                "Integrated ML-based code suggestion features",
+                "Optimized API performance and scalability for real-time workloads"
             ]
         },
         {
-            "company": "Flipkart",
+            "company": "Startup (Stealth)",
             "role": "Software Engineer",
-            "duration": "2020-2022",
+            "duration": "2021-2022",
             "highlights": [
-                "Built order management system using Django + PostgreSQL",
-                "Implemented Redis caching layer reducing API latency by 40%",
-                "Contributed to CI/CD pipeline automation"
+                "Built REST APIs using FastAPI and PostgreSQL",
+                "Implemented data pipelines for analytics and reporting",
+                "Worked on early-stage ML experimentation and model integration"
             ]
         }
     ],
     "certifications": [
-        "AWS Solutions Architect Associate",
-        "Kubernetes Application Developer (CKAD)"
+        "AWS Solutions Architect Associate"
     ],
     "projects": [
         {
-            "name": "Real-time Analytics Pipeline",
-            "tech": ["Python", "Kafka", "Redis", "PostgreSQL"],
-            "description": "Built streaming pipeline processing 1M events/day"
+            "name": "ML-powered Recommendation System",
+            "tech": ["Python", "Scikit-learn", "FastAPI", "Docker"],
+            "description": "Built and deployed a recommendation engine improving user engagement by 25%"
         }
     ],
     "capabilities": [
         "System design and architecture",
-        "Technical mentorship",
+        "Machine learning integration",
+        "Model deployment and MLOps",
         "Performance optimization",
         "Distributed systems"
     ],
     "downsides": [
-        "Limited Kubernetes production experience (mostly Docker-based)",
-        "No Terraform experience",
-        "No GraphQL experience"
+        "Limited large-scale deep learning experience",
+        "No extensive experience with Kubernetes in production",
+        "Limited exposure to reinforcement learning"
     ]
 }
