@@ -35,6 +35,7 @@ class DebateState(TypedDict):
 async def advocate_node(state: DebateState) -> dict:
     log: ConversationLog = state["conversation_log"]
     round_num = state["current_round"]
+    print(f"   [API Call] 🤖 Advocate Agent running (Round {round_num})...")
 
     context = "Opening round — make your strongest case for hiring."
     if state["critic_args"]:
@@ -62,6 +63,7 @@ async def advocate_node(state: DebateState) -> dict:
 async def critic_node(state: DebateState) -> dict:
     log: ConversationLog = state["conversation_log"]
     round_num = state["current_round"]
+    print(f"   [API Call] 🤖 Critic Agent running (Round {round_num})...")
 
     last_advocate = state["advocate_args"][-1] if state["advocate_args"] else {}
     context = (
@@ -87,6 +89,7 @@ async def critic_node(state: DebateState) -> dict:
 async def fairness_node(state: DebateState) -> dict:
     log: ConversationLog = state["conversation_log"]
     round_num = state["current_round"]
+    print(f"   [API Call] 🤖 Fairness Agent running (Round {round_num})...")
 
     last_advocate = state["advocate_args"][-1] if state["advocate_args"] else {}
     last_critic = state["critic_args"][-1] if state["critic_args"] else {}
@@ -108,6 +111,7 @@ def should_continue(state: DebateState) -> str:
 
 async def judge_node(state: DebateState) -> dict:
     log: ConversationLog = state["conversation_log"]
+    print(f"   [API Call] 🏛️ Judge Agent running (Final Verdict)...")
 
     if not settings.GEMINI_API_KEY:
         raise RuntimeError("No GEMINI_API_KEY set. Please add your API key in the sidebar.")

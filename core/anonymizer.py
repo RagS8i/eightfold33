@@ -83,6 +83,8 @@ async def redact_bias_with_llm(candidate: dict) -> dict:
     if not settings.GEMINI_API_KEY:
         # No API key: regex layer is sufficient, skip LLM redaction
         return candidate
+    
+    print("   [API Call] 🔒 Anonymizer LLM running...")
 
     import json
     from langchain_google_genai import ChatGoogleGenerativeAI
