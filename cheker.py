@@ -37,7 +37,7 @@ try:
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
         model="gemini-3.1-flash-lite-preview",  # ✅ valid model
-        contents="Reply with the single word: WORKING"
+        contents="Reply with the single word and name of ceo of google : WORKING"
     )
     print(f"✅ Success! Model replied: {response.text.strip()}")
     print()
